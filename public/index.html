@@ -58,6 +58,22 @@
           <input type="number" id="input-custom-delay" min="0" max="60" step="1" inputmode="numeric" />
         </label>
       </div>
+
+      <label class="toggle-field toggle-field--handicap">
+        <span>Handicap (different starting time per player)</span>
+        <input type="checkbox" id="input-handicap" />
+        <span class="toggle-switch" aria-hidden="true"></span>
+      </label>
+      <div id="handicap-fields" class="custom-fields" hidden>
+        <label class="number-field">
+          <span id="handicap-p1-label">Player 1 minutes</span>
+          <input type="number" id="input-handicap-p1-minutes" min="0" max="180" step="1" inputmode="numeric" />
+        </label>
+        <label class="number-field">
+          <span id="handicap-p2-label">Player 2 minutes</span>
+          <input type="number" id="input-handicap-p2-minutes" min="0" max="180" step="1" inputmode="numeric" />
+        </label>
+      </div>
     </fieldset>
 
     <fieldset class="setup-section">

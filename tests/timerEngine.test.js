@@ -443,3 +443,62 @@ describe('low-time precision', () => {
     assert.equal(snap.player1RemainingMs, 9_850);
   });
 });
+
+describe('handicap ("chấp giờ" — asymmetric starting time per player)', () => {
+  test('player1StartMs/player2StartMs override the shared startMs independently', () => {
+    const now = makeClock();
+    const engine = newEngine(now, { startMs: 60_000, player1StartMs: 10 * 60_000, player2StartMs: 5 * 60_000 });
+    assert.equal(engine.player1RemainingMs, 10 * 60_000);
+    assert.equal(engine.player2RemainingMs, 5 * 60_000);
+  });
+
+  test('omitting the per-player override falls back to the shared startMs (symmetric, default behavior)', () => {
+    const now = makeClock();
+    const engine = newEngine(now, { startMs: 60_000, player1StartMs: 10 * 60_000 });
+    assert.equal(engine.player1RemainingMs, 10 * 60_000);
+    assert.equal(engine.player2RemainingMs, 60_000);
+  });
+
+  test('increment and delay stay shared even in a handicap match', () => {
+    const now = makeClock();
+    const engine = newEngine(now, {
+      startMs: 60_000, player1StartMs: 10 * 60_000, player2StartMs: 5 * 60_000, incrementMs: 3_000,
+    });
+    engine.start(now());
+    engine.press(1, now.advance(1_000)); // 10min - 1s + 3s
+    assert.equal(engine.player1RemainingMs, 10 * 60_000 - 1_000 + 3_000);
+    engine.press(2, now.advance(1_000)); // 5min - 1s + 3s, same increment
+    assert.equal(engine.player2RemainingMs, 5 * 60_000 - 1_000 + 3_000);
+  });
+
+  test('each player independently expires against their own starting time', () => {
+    const now = makeClock();
+    const engine = newEngine(now, { startMs: 60_000, player1StartMs: 2_000, player2StartMs: 60_000 });
+    engine.start(now());
+    now.advance(3_000); // exceeds P1's 2s handicap allotment, well within P2's normal minute
+    const expired = engine.checkExpiration(now());
+    assert.equal(expired, true);
+    assert.equal(engine.expiredPlayer, 1);
+    assert.equal(engine.player2RemainingMs, 60_000); // untouched — P2 never got to move
+  });
+
+  test('restart() preserves each player\'s individual handicap starting time', () => {
+    const now = makeClock();
+    const engine = newEngine(now, { startMs: 60_000, player1StartMs: 10 * 60_000, player2StartMs: 5 * 60_000 });
+    engine.start(now());
+    engine.press(1, now.advance(1_000));
+    engine.restart();
+    assert.equal(engine.state, TimerState.READY);
+    assert.equal(engine.player1RemainingMs, 10 * 60_000);
+    assert.equal(engine.player2RemainingMs, 5 * 60_000);
+  });
+
+  test('toHistoryRecord() reports each player\'s starting time separately', () => {
+    const now = makeClock();
+    const engine = newEngine(now, { startMs: 60_000, player1StartMs: 10 * 60_000, player2StartMs: 5 * 60_000 });
+    engine.start(now());
+    const record = engine.toHistoryRecord();
+    assert.equal(record.player1StartingTimeMs, 10 * 60_000);
+    assert.equal(record.player2StartingTimeMs, 5 * 60_000);
+  });
+});

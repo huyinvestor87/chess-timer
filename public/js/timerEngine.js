@@ -75,28 +75,39 @@ export class ChessClockEngine {
    * @param {object} config
    * @param {string} config.player1Name
    * @param {string} config.player2Name
-   * @param {number} config.startMs      starting time per player, ms
+   * @param {number} config.startMs      starting time per player, ms — used
+   *        for both players unless overridden individually below.
+   * @param {number} [config.player1StartMs]  overrides config.startMs for
+   *        player 1 only. Together with player2StartMs this implements
+   *        "chấp giờ" (time handicap): giving a weaker player more starting
+   *        time than their opponent. Omit both to keep the normal
+   *        symmetric behavior (both players get config.startMs).
+   * @param {number} [config.player2StartMs]  overrides config.startMs for
+   *        player 2 only.
    * @param {number} [config.incrementMs=0]  Fischer increment added after a
-   *        completed move, ms
+   *        completed move, ms — always the same for both players.
    * @param {number} [config.delayMs=0]  Bronstein/US-delay: this many ms of
    *        each turn elapse before the active player's clock starts counting
-   *        down
+   *        down — always the same for both players.
    * @param {1|2} [config.firstPlayer=1]
    */
   configure(config) {
-    const startMs = Math.max(0, Math.round(config.startMs));
+    const baseStartMs = Math.max(0, Math.round(config.startMs || 0));
+    const player1StartMs = config.player1StartMs != null ? Math.max(0, Math.round(config.player1StartMs)) : baseStartMs;
+    const player2StartMs = config.player2StartMs != null ? Math.max(0, Math.round(config.player2StartMs)) : baseStartMs;
     this.config = {
       player1Name: config.player1Name || 'Player 1',
       player2Name: config.player2Name || 'Player 2',
-      startMs,
+      player1StartMs,
+      player2StartMs,
       incrementMs: Math.max(0, Math.round(config.incrementMs || 0)),
       delayMs: Math.max(0, Math.round(config.delayMs || 0)),
       firstPlayer: config.firstPlayer === 2 ? 2 : 1,
     };
     this.state = TimerState.READY;
     this.activePlayer = this.config.firstPlayer;
-    this.player1RemainingMs = startMs;
-    this.player2RemainingMs = startMs;
+    this.player1RemainingMs = player1StartMs;
+    this.player2RemainingMs = player2StartMs;
     this.player1Moves = 0;
     this.player2Moves = 0;
     this.expiredPlayer = null;
@@ -305,7 +316,8 @@ export class ChessClockEngine {
     return {
       player1Name: this.config?.player1Name ?? '',
       player2Name: this.config?.player2Name ?? '',
-      startingTimeMs: this.config?.startMs ?? 0,
+      player1StartingTimeMs: this.config?.player1StartMs ?? 0,
+      player2StartingTimeMs: this.config?.player2StartMs ?? 0,
       incrementMs: this.config?.incrementMs ?? 0,
       delayMs: this.config?.delayMs ?? 0,
       player1Moves: this.player1Moves,

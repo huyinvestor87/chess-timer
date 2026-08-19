@@ -37,6 +37,9 @@ const wakeLock = new WakeLockManager();
 let settings = loadSettings();
 let firstPlayer = settings.firstPlayer === 2 ? 2 : 1;
 let selectedPresetId = settings.presetId || '5min';
+// "Chấp giờ" (time handicap): lets player2 start with a different amount of
+// time than player1. Increment/delay always stay shared between players.
+let handicapEnabled = !!settings.handicapEnabled;
 let pendingConfirmAction = null; // 'restart' | 'newTimer'
 let lastWarnedSecond = { 1: null, 2: null };
 let rafId = null;
@@ -54,6 +57,12 @@ const dom = {
   customMinutes: el('input-custom-minutes'),
   customIncrement: el('input-custom-increment'),
   customDelay: el('input-custom-delay'),
+  handicapInput: el('input-handicap'),
+  handicapFields: el('handicap-fields'),
+  handicapP1Minutes: el('input-handicap-p1-minutes'),
+  handicapP2Minutes: el('input-handicap-p2-minutes'),
+  handicapP1Label: el('handicap-p1-label'),
+  handicapP2Label: el('handicap-p2-label'),
   player1NameInput: el('input-player1-name'),
   player2NameInput: el('input-player2-name'),
   soundInput: el('input-sound'),
@@ -139,7 +148,7 @@ function currentConfigFromForm() {
     incrementMs = Math.max(0, Number(dom.customIncrement.value || 0)) * 1000;
     delayMs = Math.max(0, Number(dom.customDelay.value || 0)) * 1000;
   }
-  return {
+  const config = {
     player1Name: dom.player1NameInput.value.trim() || 'Player 1',
     player2Name: dom.player2NameInput.value.trim() || 'Player 2',
     startMs,
@@ -147,6 +156,13 @@ function currentConfigFromForm() {
     delayMs,
     firstPlayer,
   };
+
+  if (handicapEnabled) {
+    config.player1StartMs = Math.max(0, Number(dom.handicapP1Minutes.value || 0)) * 60_000;
+    config.player2StartMs = Math.max(0, Number(dom.handicapP2Minutes.value || 0)) * 60_000;
+  }
+
+  return config;
 }
 
 function persistSettingsFromForm() {
@@ -162,6 +178,9 @@ function persistSettingsFromForm() {
     presetId: selectedPresetId,
     soundEnabled: dom.soundInput.checked,
     vibrationEnabled: dom.vibrationInput.checked,
+    handicapEnabled,
+    player1StartMs: handicapEnabled ? config.player1StartMs : settings.player1StartMs,
+    player2StartMs: handicapEnabled ? config.player2StartMs : settings.player2StartMs,
   };
   saveSettings(settings);
 }
@@ -197,6 +216,36 @@ function selectFirstPlayer(player) {
   }
 }
 
+function updateHandicapLabels() {
+  const p1 = dom.player1NameInput.value.trim() || 'Player 1';
+  const p2 = dom.player2NameInput.value.trim() || 'Player 2';
+  dom.handicapP1Label.textContent = `${p1} minutes`;
+  dom.handicapP2Label.textContent = `${p2} minutes`;
+}
+
+function setHandicapEnabled(enabled) {
+  handicapEnabled = enabled;
+  dom.handicapInput.checked = enabled;
+  dom.handicapFields.hidden = !enabled;
+  if (enabled) updateHandicapLabels();
+}
+
+dom.handicapInput.addEventListener('change', () => {
+  const turningOn = dom.handicapInput.checked && !handicapEnabled;
+  setHandicapEnabled(dom.handicapInput.checked);
+  if (turningOn) {
+    // Seed both fields from the currently selected preset/custom minutes so
+    // there's a sensible starting point to adjust from, rather than blanks.
+    const baseMinutes = dom.customMinutes.value || Math.round(settings.startMs / 60_000) || 5;
+    const preset = PRESETS.find((p) => p.id === selectedPresetId);
+    const minutes = preset && preset.id !== 'custom' ? preset.minutes : baseMinutes;
+    dom.handicapP1Minutes.value = minutes;
+    dom.handicapP2Minutes.value = minutes;
+  }
+});
+dom.player1NameInput.addEventListener('input', updateHandicapLabels);
+dom.player2NameInput.addEventListener('input', updateHandicapLabels);
+
 function applySettingsToForm() {
   dom.player1NameInput.value = settings.player1Name === DEFAULT_SETTINGS.player1Name ? '' : settings.player1Name;
   dom.player2NameInput.value = settings.player2Name === DEFAULT_SETTINGS.player2Name ? '' : settings.player2Name;
@@ -205,6 +254,9 @@ function applySettingsToForm() {
   dom.customMinutes.value = Math.round(settings.startMs / 60_000) || 5;
   dom.customIncrement.value = Math.round(settings.incrementMs / 1000) || 0;
   dom.customDelay.value = Math.round(settings.delayMs / 1000) || 0;
+  dom.handicapP1Minutes.value = Math.round(settings.player1StartMs / 60_000) || 5;
+  dom.handicapP2Minutes.value = Math.round(settings.player2StartMs / 60_000) || 5;
+  setHandicapEnabled(!!settings.handicapEnabled);
   selectPreset(PRESETS.some((p) => p.id === selectedPresetId) ? selectedPresetId : '5min');
   selectFirstPlayer(firstPlayer);
 }
@@ -446,9 +498,14 @@ function openHistoryModal() {
 function historyItemHtml(item) {
   const date = item.endedAt ? new Date(item.endedAt).toLocaleString() : '';
   const expiredName = item.expiredPlayer === 1 ? item.player1Name : item.expiredPlayer === 2 ? item.player2Name : '—';
+  const p1Min = Math.round((item.player1StartingTimeMs ?? 0) / 60000);
+  const p2Min = Math.round((item.player2StartingTimeMs ?? 0) / 60000);
+  // Only call out each player's starting time separately when it was a
+  // handicap ("chấp giờ") match — otherwise show the single shared value.
+  const startLabel = p1Min === p2Min ? `${p1Min}m` : `${p1Min}m/${p2Min}m (chấp giờ)`;
   return `<div class="history-item">
     <div class="history-row1"><span>${escapeHtml(item.player1Name)} vs ${escapeHtml(item.player2Name)}</span><span>${date}</span></div>
-    <div class="history-row2">${expiredName} ran out · Moves ${item.player1Moves}/${item.player2Moves} · Start ${Math.round(item.startingTimeMs / 60000)}m +${Math.round(item.incrementMs / 1000)}s</div>
+    <div class="history-row2">${expiredName} ran out · Moves ${item.player1Moves}/${item.player2Moves} · Start ${startLabel} +${Math.round(item.incrementMs / 1000)}s</div>
   </div>`;
 }
 

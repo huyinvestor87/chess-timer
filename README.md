@@ -125,6 +125,17 @@ turns.
   the delay window actually counts down. The delay window resets fresh on
   every turn and correctly accumulates across pause/resume within a turn.
 
+## Handicap ("chấp giờ")
+
+Setup has an optional **Handicap** toggle that gives each player their own
+starting time instead of both sharing one value — e.g. a stronger player
+starts with 5 minutes while their opponent gets 10. In the engine this is
+just `configure({ player1StartMs, player2StartMs, ... })`; increment and
+delay are always shared between both players, only starting time can differ.
+Everything else (switching, increment, delay, undo, expiration) behaves
+identically to a normal symmetric match — each player's clock is simply
+tracked against their own starting allotment.
+
 ## Pause / Resume
 
 `pause()` freezes both players' remaining time (by folding elapsed turn time
