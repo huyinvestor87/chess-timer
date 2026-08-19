@@ -228,6 +228,16 @@ uploads `public/` to GitHub Pages on every push to `main`, via
 `actions/upload-pages-artifact` + `actions/deploy-pages`. One-time setup:
 **Settings → Pages → Source: GitHub Actions**.
 
+**Cache-busting**: `index.html`, `app.js`'s internal module imports, and
+`service-worker.js`'s `CACHE_VERSION` all carry a literal `__CACHE_VERSION__`
+placeholder in source. The "Stamp cache-busting version" workflow step
+replaces it with that commit's short SHA right before upload, so every
+deploy gets brand-new JS/CSS URLs no browser or CDN has cached before, and
+the service worker's Cache Storage name changes too (the old app shell is
+deleted on activate). Locally (`npm run serve`) the placeholder is left
+as-is — harmless, since query strings don't affect module resolution or the
+dev server's file lookup.
+
 The same workflow also has an optional `firestore-rules` job that deploys
 `firestore.rules`/`firestore.indexes.json` — but only if you've configured
 the Firebase secrets described in `FIREBASE_SETUP.md`. Without them, Pages
