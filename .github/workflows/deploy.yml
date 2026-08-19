@@ -45,6 +45,13 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # GitHub Actions doesn't allow the `secrets` context inside `if:`
+    # conditions (only in `env:`/`run:`), so whether the optional Firebase
+    # jobs/steps below run is decided here, once, via a job output — every
+    # downstream `if:` then reads `needs.test.outputs.has_firebase` instead
+    # of touching `secrets` directly in a condition.
+    outputs:
+      has_firebase: ${{ steps.check.outputs.has_firebase }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,6 +60,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Check whether Firebase secrets are configured
+        id: check
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$FIREBASE_WEB_CONFIG" ] && [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "has_firebase=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_firebase=false" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy-pages:
     needs: test
@@ -73,7 +91,7 @@ jobs:
       # in CI, never committed. Skipped entirely if the secret isn't set;
       # the app works exactly the same either way, just local-history-only.
       - name: Write public/js/firebase-config.js from secret
-        if: ${{ secrets.FIREBASE_WEB_CONFIG != '' }}
+        if: ${{ needs.test.outputs.has_firebase == 'true' }}
         env:
           FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
         run: |
@@ -97,7 +115,7 @@ jobs:
   # in sync with this repo.
   firestore-rules:
     needs: test
-    if: ${{ secrets.FIREBASE_WEB_CONFIG != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    if: ${{ needs.test.outputs.has_firebase == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
