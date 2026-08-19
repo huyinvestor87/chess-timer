@@ -85,6 +85,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache-busting: index.html, app.js's internal module imports, and
+      # service-worker.js's CACHE_VERSION all carry a literal
+      # __CACHE_VERSION__ placeholder in source (see comments in those
+      # files). Stamp it with this commit's short SHA here, so every deploy
+      # gets unique JS/CSS URLs a browser (or GitHub Pages' CDN) has never
+      # cached before, and the service worker's Cache Storage gets a brand
+      # new cache name (old app-shell caches are deleted on activate).
+      - name: Stamp cache-busting version
+        run: |
+          VERSION="${GITHUB_SHA::8}"
+          for f in public/index.html public/js/app.js public/service-worker.js; do
+            sed -i "s/__CACHE_VERSION__/$VERSION/g" "$f"
+          done
+          echo "Stamped version: $VERSION"
+
       # Optional: write public/js/firebase-config.js from the secret so the
       # deployed site can use the Firestore history backup feature. This
       # file is gitignored (see .gitignore) — it's only ever generated here

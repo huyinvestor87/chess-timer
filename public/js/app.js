@@ -4,11 +4,18 @@
  * Firebase history. All actual timekeeping logic lives in timerEngine.js;
  * this file only reads snapshots and reacts to taps.
  */
-import { ChessClockEngine, TimerState } from './timerEngine.js';
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, loadHistory, appendHistory, clearHistory } from './storage.js';
-import * as feedback from './feedback.js';
-import { WakeLockManager } from './wakeLock.js';
-import { saveSessionToFirebase } from './firebaseHistory.js';
+// The ?v=__CACHE_VERSION__ query strings here (and on <link>/<script> tags in
+// index.html) are cache-busting: the CI deploy step replaces the placeholder
+// with the actual commit SHA, so every deploy gets fresh URLs for its JS/CSS
+// instead of relying on browsers to notice unversioned files changed. See
+// the "Stamp cache-busting version" step in .github/workflows/deploy.yml.
+// Locally (npm run serve) the placeholder is left as-is, which is harmless —
+// scripts/serve.mjs ignores query strings when resolving files on disk.
+import { ChessClockEngine, TimerState } from './timerEngine.js?v=__CACHE_VERSION__';
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, loadHistory, appendHistory, clearHistory } from './storage.js?v=__CACHE_VERSION__';
+import * as feedback from './feedback.js?v=__CACHE_VERSION__';
+import { WakeLockManager } from './wakeLock.js?v=__CACHE_VERSION__';
+import { saveSessionToFirebase } from './firebaseHistory.js?v=__CACHE_VERSION__';
 
 // ---------------------------------------------------------------- presets --
 
