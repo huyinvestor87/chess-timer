@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Security rules for Chess Clock Timer. Collections use the
+// `chessClockTimer_` prefix so this Firestore database can be shared with
+// other apps without colliding on collection names — change the prefix
+// here AND in public/js/firebaseHistory.js (COLLECTION_PREFIX) together.
+//
+// There is no backend/Cloud Function: the browser writes to Firestore
+// directly, so these rules ARE the entire validation/authorization layer.
+//
+// Only one collection is used: completed timer SESSION SUMMARIES (never
+// the live/running clock — the app never writes per-tick timer state to
+// Firestore at all, active timing is 100% local). This is the append-only,
+// self-validating public log pattern: no login required (the whole app is
+// guest/local-first), but every write must be internally consistent and
+// bounded, and nothing is ever editable or deletable once written.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /chessClockTimer_sessions/{sessionId} {
+      allow read: if true;
+      allow create: if isValidSession();
+      allow update, delete: if false;
+
+      function isValidSession() {
+        let d = request.resource.data;
+        return d.player1Name is string && d.player1Name.size() > 0 && d.player1Name.size() <= 24
+          && d.player2Name is string && d.player2Name.size() > 0 && d.player2Name.size() <= 24
+          // Bounded to sane chess-clock ranges: up to 6 hours starting time,
+          // 5 minute increment/delay per move — far beyond any real preset,
+          // just wide enough to never reject a legitimate custom timer.
+          && d.startingTimeMs is int && d.startingTimeMs >= 0 && d.startingTimeMs <= 6 * 60 * 60 * 1000
+          && d.incrementMs is int && d.incrementMs >= 0 && d.incrementMs <= 5 * 60 * 1000
+          && d.delayMs is int && d.delayMs >= 0 && d.delayMs <= 5 * 60 * 1000
+          // A move count can't plausibly exceed a few thousand in one game.
+          && d.player1Moves is int && d.player1Moves >= 0 && d.player1Moves <= 5000
+          && d.player2Moves is int && d.player2Moves >= 0 && d.player2Moves <= 5000
+          // Remaining time can never exceed what the clock started with.
+          && d.player1RemainingMs is int && d.player1RemainingMs >= 0 && d.player1RemainingMs <= d.startingTimeMs + d.player1Moves * d.incrementMs
+          && d.player2RemainingMs is int && d.player2RemainingMs >= 0 && d.player2RemainingMs <= d.startingTimeMs + d.player2Moves * d.incrementMs
+          // expiredPlayer is either 1, 2, or null (session ended some other way).
+          && (d.expiredPlayer == null || d.expiredPlayer == 1 || d.expiredPlayer == 2)
+          && d.startedAt is int && d.startedAt >= 0
+          && d.endedAt is int && d.endedAt >= d.startedAt
+          && d.createdAt == request.time; // blocks backdating/forging timestamps
+      }
+    }
+
+    // Deny everything else by default (spelled out for clarity — Firestore
+    // already denies unmatched paths, but this documents intent explicitly
+    // and protects other apps' collections sharing this same database).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

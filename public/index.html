@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Chess Clock Timer</title>
+<meta name="description" content="A chess clock / chess timer for two players sharing a physical chess board. Not a chess game." />
+<meta name="theme-color" content="#141a21" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Chess Clock" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<!-- ===================== SETUP SCREEN ===================== -->
+<section id="screen-setup" class="screen" aria-label="Timer setup">
+  <header class="setup-header">
+    <h1>Chess Clock Timer</h1>
+    <p class="setup-subtitle">A clock for the board next to you — not a chess game.</p>
+  </header>
+
+  <form id="setup-form" class="setup-form">
+
+    <fieldset class="setup-section">
+      <legend>Players</legend>
+      <div class="name-row">
+        <label class="name-field">
+          <span>Player 1 name</span>
+          <input type="text" id="input-player1-name" maxlength="24" autocomplete="off" placeholder="Player 1" />
+        </label>
+        <label class="name-field">
+          <span>Player 2 name</span>
+          <input type="text" id="input-player2-name" maxlength="24" autocomplete="off" placeholder="Player 2" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="setup-section">
+      <legend>Time control</legend>
+      <div id="preset-grid" class="preset-grid" role="group" aria-label="Time control presets"></div>
+
+      <div id="custom-fields" class="custom-fields" hidden>
+        <label class="number-field">
+          <span>Minutes</span>
+          <input type="number" id="input-custom-minutes" min="0" max="180" step="1" inputmode="numeric" />
+        </label>
+        <label class="number-field">
+          <span>Increment (sec)</span>
+          <input type="number" id="input-custom-increment" min="0" max="120" step="1" inputmode="numeric" />
+        </label>
+        <label class="number-field">
+          <span>Delay (sec)</span>
+          <input type="number" id="input-custom-delay" min="0" max="60" step="1" inputmode="numeric" />
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="setup-section">
+      <legend>First to move</legend>
+      <div class="segmented" role="radiogroup" aria-label="First player">
+        <button type="button" class="segmented-btn" data-first-player="1" aria-pressed="true">Player 1</button>
+        <button type="button" class="segmented-btn" data-first-player="2" aria-pressed="false">Player 2</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="setup-section setup-section--row">
+      <legend class="sr-only">Feedback</legend>
+      <label class="toggle-field">
+        <span>Sound</span>
+        <input type="checkbox" id="input-sound" />
+        <span class="toggle-switch" aria-hidden="true"></span>
+      </label>
+      <label class="toggle-field">
+        <span>Vibration</span>
+        <input type="checkbox" id="input-vibration" />
+        <span class="toggle-switch" aria-hidden="true"></span>
+      </label>
+    </fieldset>
+
+    <button type="submit" id="btn-start-timer" class="btn-primary btn-huge">Start Clock</button>
+  </form>
+
+  <button type="button" id="btn-view-history" class="link-btn">View session history</button>
+</section>
+
+<!-- ===================== CLOCK SCREEN ===================== -->
+<section id="screen-clock" class="screen" hidden aria-label="Chess clock">
+
+  <div class="rotate-banner" id="rotate-banner" role="status">Rotate your device for the best experience.</div>
+
+  <div class="clock-area">
+    <button type="button" class="clock-half clock-half--p1" id="clock-p1" aria-label="Player 1 clock — tap after completing your move">
+      <div class="clock-content">
+        <div class="player-name" id="display-p1-name">Player 1</div>
+        <div class="clock-time" id="display-p1-time">05:00</div>
+        <div class="player-moves"><span id="display-p1-moves">0</span> moves</div>
+        <div class="expired-label">TIME EXPIRED</div>
+      </div>
+    </button>
+
+    <button type="button" class="clock-half clock-half--p2" id="clock-p2" aria-label="Player 2 clock — tap after completing your move">
+      <div class="clock-content">
+        <div class="player-name" id="display-p2-name">Player 2</div>
+        <div class="clock-time" id="display-p2-time">05:00</div>
+        <div class="player-moves"><span id="display-p2-moves">0</span> moves</div>
+        <div class="expired-label">TIME EXPIRED</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="ready-overlay" id="ready-overlay">
+    <div class="ready-card">
+      <p>Ready. First move: <strong id="ready-first-player-name">Player 1</strong></p>
+      <button type="button" id="btn-tap-to-start" class="btn-primary btn-huge">Tap to Start</button>
+    </div>
+  </div>
+
+  <div class="control-bar">
+    <button type="button" id="btn-pause-resume" class="ctrl-btn ctrl-btn--primary">
+      <span class="ctrl-icon" aria-hidden="true">&#10074;&#10074;</span><span class="ctrl-label">Pause</span>
+    </button>
+    <button type="button" id="btn-undo" class="ctrl-btn" disabled>
+      <span class="ctrl-icon" aria-hidden="true">&#8630;</span><span class="ctrl-label">Undo</span>
+    </button>
+    <button type="button" id="btn-restart" class="ctrl-btn">
+      <span class="ctrl-icon" aria-hidden="true">&#8635;</span><span class="ctrl-label">Restart</span>
+    </button>
+    <button type="button" id="btn-settings" class="ctrl-btn">
+      <span class="ctrl-icon" aria-hidden="true">&#9881;</span><span class="ctrl-label">Settings</span>
+    </button>
+    <button type="button" id="btn-fullscreen" class="ctrl-btn">
+      <span class="ctrl-icon" aria-hidden="true">&#9974;</span><span class="ctrl-label">Fullscreen</span>
+    </button>
+    <button type="button" id="btn-new-timer" class="ctrl-btn">
+      <span class="ctrl-icon" aria-hidden="true">&#8592;</span><span class="ctrl-label">New Timer</span>
+    </button>
+  </div>
+</section>
+
+<!-- ===================== SETTINGS MODAL (mid-game) ===================== -->
+<div id="modal-settings" class="modal" hidden>
+  <div class="modal-card">
+    <h2>Settings</h2>
+    <label class="toggle-field toggle-field--modal">
+      <span>Sound</span>
+      <input type="checkbox" id="modal-input-sound" />
+      <span class="toggle-switch" aria-hidden="true"></span>
+    </label>
+    <label class="toggle-field toggle-field--modal">
+      <span>Vibration</span>
+      <input type="checkbox" id="modal-input-vibration" />
+      <span class="toggle-switch" aria-hidden="true"></span>
+    </label>
+    <p class="modal-hint">To change players, time control, or increment, use <strong>New Timer</strong>.</p>
+    <button type="button" id="btn-close-settings" class="btn-primary">Close</button>
+  </div>
+</div>
+
+<!-- ===================== NEW TIMER CONFIRM ===================== -->
+<div id="modal-confirm-new" class="modal" hidden>
+  <div class="modal-card">
+    <h2>Start a new timer?</h2>
+    <p>This will discard the current clock and move counts.</p>
+    <div class="modal-actions">
+      <button type="button" id="btn-confirm-new-cancel" class="btn-secondary">Cancel</button>
+      <button type="button" id="btn-confirm-new-ok" class="btn-danger">Discard &amp; New Timer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TIME EXPIRED MODAL ===================== -->
+<div id="modal-expired" class="modal" hidden>
+  <div class="modal-card">
+    <h2 id="expired-title">Time Expired</h2>
+    <p id="expired-detail"></p>
+    <p class="modal-hint">Accidental press? Undo restores the clock to right before it.</p>
+    <div class="modal-actions">
+      <button type="button" id="btn-expired-undo" class="btn-secondary">Undo</button>
+      <button type="button" id="btn-expired-restart" class="btn-secondary">Restart</button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="btn-expired-new" class="btn-primary">New Timer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HISTORY SCREEN ===================== -->
+<div id="modal-history" class="modal" hidden>
+  <div class="modal-card modal-card--wide">
+    <h2>Session History</h2>
+    <div id="history-list" class="history-list"></div>
+    <div class="modal-actions">
+      <button type="button" id="btn-clear-history" class="btn-secondary">Clear local history</button>
+      <button type="button" id="btn-close-history" class="btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

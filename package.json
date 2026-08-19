@@ -1,0 +1,17 @@
+{
+  "name": "chess-clock-timer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A chess clock / chess timer PWA for two players sharing a physical chess board.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "icons": "node scripts/generate-icons.mjs",
+    "serve": "node scripts/serve.mjs",
+    "deploy": "npx firebase-tools deploy --only hosting",
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules,firestore:indexes"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

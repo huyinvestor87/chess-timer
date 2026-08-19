@@ -1,0 +1,94 @@
+name: Deploy to Firebase
+
+# Runs the timer-engine test suite, then deploys the static app (public/) to
+# Firebase Hosting and publishes firestore.rules / firestore.indexes.json to
+# the same Firebase project, so a push to main always keeps the live site,
+# its offline app shell, and its security rules in sync.
+#
+# There is no build step — this is a plain HTML/CSS/JS app with no bundler.
+# The one thing generated at CI time is public/js/firebase-config.js (the
+# Firebase Web SDK config object), written from the FIREBASE_WEB_CONFIG
+# secret just before deploying, since that file is intentionally gitignored
+# (see .gitignore and FIREBASE_SETUP.md) — the app runs fully offline/local
+# without it, so it's only ever written here in CI, never committed.
+#
+# Required repo Secrets (Settings → Secrets and variables → Actions):
+#   FIREBASE_SERVICE_ACCOUNT   Firebase Console → Project settings →
+#                               Service accounts → Generate new private key
+#                               → paste the whole downloaded JSON file.
+#   FIREBASE_WEB_CONFIG        The whole `firebaseConfig` object from
+#                               Firebase Console → Project settings →
+#                               General → Your apps → SDK setup and
+#                               configuration, pasted as one JSON value —
+#                               same value you'd paste into
+#                               public/js/firebase-config.js locally. Not
+#                               actually secret (ships in the public JS
+#                               bundle either way), just stored here so the
+#                               deploy step can write it into the app.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      # The Firebase config blob already contains the project id — pull it
+      # out here instead of asking for a second, redundant secret. Accepts
+      # both the Web SDK's camelCase (projectId) and the snake_case some
+      # Firebase Console views/config files use, and fails loudly instead of
+      # silently deploying to a project named "undefined".
+      - name: Read Firebase project id from config
+        id: fbconfig
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          PROJECT_ID=$(node -e "
+            const c = JSON.parse(process.env.FIREBASE_WEB_CONFIG);
+            const id = c.projectId || c.project_id;
+            if (!id) { console.error('No projectId/project_id field found in FIREBASE_WEB_CONFIG secret.'); process.exit(1); }
+            console.log(id);
+          ")
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Write public/js/firebase-config.js from secret
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          node -e "
+            const config = JSON.parse(process.env.FIREBASE_WEB_CONFIG);
+            const fs = require('fs');
+            fs.writeFileSync('public/js/firebase-config.js',
+              'export const firebaseConfig = ' + JSON.stringify(config, null, 2) + ';\n');
+          "
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ steps.fbconfig.outputs.project_id }}
+          channelId: live
+
+      - name: Write Firebase service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "${RUNNER_TEMP}/firebase-sa.json"
+
+      - name: Deploy Firestore rules & indexes
+        run: npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+          FIREBASE_PROJECT_ID: ${{ steps.fbconfig.outputs.project_id }}
