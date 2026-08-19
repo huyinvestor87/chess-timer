@@ -1,0 +1,137 @@
+name: Deploy
+
+# Deploys the static app (public/) to GitHub Pages on every push to main.
+# There is no build step — this is a plain HTML/CSS/JS app with no bundler,
+# so "deploying" is just uploading public/ as-is.
+#
+# Firebase is entirely optional here and only used for one thing: backing up
+# completed session summaries to Firestore (see public/js/firebaseHistory.js
+# and firestore.rules). It is NEVER required for hosting or for active
+# timing. The `firestore-rules` job below only runs at all if both Firebase
+# secrets are configured; if they're not, Pages still deploys normally and
+# the app just runs with local-only history.
+#
+# Optional repo Secrets (Settings → Secrets and variables → Actions) — only
+# needed if you want the optional Firestore history backup feature:
+#   FIREBASE_WEB_CONFIG        The whole `firebaseConfig` object from
+#                               Firebase Console → Project settings →
+#                               General → Your apps → SDK setup and
+#                               configuration, pasted as one JSON value —
+#                               same value you'd paste into
+#                               public/js/firebase-config.js locally. Not
+#                               actually secret (ships in the public JS
+#                               bundle either way); also used to write that
+#                               file into the deployed site.
+#   FIREBASE_SERVICE_ACCOUNT   Firebase Console → Project settings →
+#                               Service accounts → Generate new private key
+#                               → paste the whole downloaded JSON file. Only
+#                               used to deploy firestore.rules/indexes.
+#
+# See FIREBASE_SETUP.md for connecting an existing (manually-created)
+# Firebase project.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy-pages:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Optional: write public/js/firebase-config.js from the secret so the
+      # deployed site can use the Firestore history backup feature. This
+      # file is gitignored (see .gitignore) — it's only ever generated here
+      # in CI, never committed. Skipped entirely if the secret isn't set;
+      # the app works exactly the same either way, just local-history-only.
+      - name: Write public/js/firebase-config.js from secret
+        if: ${{ secrets.FIREBASE_WEB_CONFIG != '' }}
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          node -e "
+            const config = JSON.parse(process.env.FIREBASE_WEB_CONFIG);
+            const fs = require('fs');
+            fs.writeFileSync('public/js/firebase-config.js',
+              'export const firebaseConfig = ' + JSON.stringify(config, null, 2) + ';\n');
+          "
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Optional — only runs if both Firebase secrets are set. Publishes
+  # firestore.rules / firestore.indexes.json to your Firebase project so
+  # the (optional) Firestore session-history backup stays validated and
+  # in sync with this repo.
+  firestore-rules:
+    needs: test
+    if: ${{ secrets.FIREBASE_WEB_CONFIG != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # The Firebase config blob already contains the project id — pull it
+      # out here instead of asking for a second, redundant secret. Accepts
+      # both the Web SDK's camelCase (projectId) and the snake_case some
+      # Firebase Console views/config files use, and fails loudly instead of
+      # silently deploying to a project named "undefined".
+      - name: Read Firebase project id from config
+        id: fbconfig
+        env:
+          FIREBASE_WEB_CONFIG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          PROJECT_ID=$(node -e "
+            const c = JSON.parse(process.env.FIREBASE_WEB_CONFIG);
+            const id = c.projectId || c.project_id;
+            if (!id) { console.error('No projectId/project_id field found in FIREBASE_WEB_CONFIG secret.'); process.exit(1); }
+            console.log(id);
+          ")
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Write Firebase service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "${RUNNER_TEMP}/firebase-sa.json"
+
+      - name: Deploy Firestore rules & indexes
+        run: npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-sa.json
+          FIREBASE_PROJECT_ID: ${{ steps.fbconfig.outputs.project_id }}
