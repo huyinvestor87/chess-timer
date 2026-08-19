@@ -8,7 +8,6 @@
     "test": "node --test",
     "icons": "node scripts/generate-icons.mjs",
     "serve": "node scripts/serve.mjs",
-    "deploy": "npx firebase-tools deploy --only hosting",
     "deploy:rules": "npx firebase-tools deploy --only firestore:rules,firestore:indexes"
   },
   "engines": {
