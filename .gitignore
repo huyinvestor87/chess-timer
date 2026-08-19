@@ -1,0 +1,20 @@
+# Real Firebase project config — never commit real keys, even though they
+# aren't strictly secret. Keeping this out of git means a fresh clone starts
+# with Firebase history disabled and the app fully local-only, which is the
+# desired default. See public/js/firebase-config.example.js.
+public/js/firebase-config.js
+
+# Firebase CLI local state — CI passes --project explicitly instead of
+# relying on a committed .firebaserc.
+.firebaserc
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Service account keys used only for local scripts — never commit these.
+*serviceAccount*.json
+
+# OS / editor cruft
+.DS_Store
+node_modules/
