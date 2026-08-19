@@ -1,12 +1,17 @@
 # Firebase Setup
 
-Chess Clock Timer works **completely offline and fully featured with zero
-Firebase setup** — countdown, clock switching, move counting, increment,
-delay, pause/resume, undo, and restart are all 100% local (see
-`README.md#offline-support--architecture`). Firebase is used for exactly one
-optional feature: backing up completed session summaries (final scores/move
-counts) to the cloud in addition to the local history that's always kept in
-the browser.
+Chess Clock Timer is **hosted on GitHub Pages, not Firebase** (see
+`README.md#deployment-github-pages`) — Firebase is not involved in serving
+the app at all. Chess Clock Timer also works **completely offline and fully
+featured with zero Firebase setup** — countdown, clock switching, move
+counting, increment, delay, pause/resume, undo, and restart are all 100%
+local (see `README.md#offline-support--architecture`).
+
+The *only* thing Firebase is used for in this app is one optional feature:
+backing up completed session summaries (final scores/move counts) to the
+cloud in addition to the local history that's always kept in the browser.
+If you don't care about that, you can skip this whole guide — the app is
+fully functional without it.
 
 This guide assumes **you have already manually created a Firebase project**
 in the [Firebase Console](https://console.firebase.google.com/). This app
@@ -30,7 +35,7 @@ In your Firebase project's Console:
 2. **Build → Firestore Database → Rules** → paste in the contents of this
    repo's `firestore.rules` → **Publish**. (GitHub Actions will also deploy
    this file automatically on every push once you've set up the secrets in
-   step 4 — this manual publish just unblocks local development first.)
+   step 3 — this manual publish just unblocks local development first.)
 
 The rules restrict writes to one collection, `chessClockTimer_sessions`,
 and only allow **creating** a new, well-formed session summary — never
@@ -74,28 +79,28 @@ silently treats Firebase as "not configured" — session summaries are simply
 kept in local (browser) history only, and the (fairly large) Firebase SDK is
 never even downloaded. Nothing else in the app changes or breaks.
 
-## 3. Firebase Hosting
+## 3. Configure the GitHub Actions secrets (for automatic Firestore rules deploy)
 
-`firebase.json` at the repo root already points Hosting at the `public/`
-directory (this app's entire client — no build output to point at). Nothing
-to configure here beyond having the Firebase CLI available, which `npx`
-handles on demand.
-
-## 4. Configure the GitHub Actions deploy secrets (for automatic deploys)
-
-`.github/workflows/deploy.yml` deploys Hosting + Firestore rules on every
-push to `main`. It needs two repository secrets (**Settings → Secrets and
-variables → Actions → New repository secret**):
+Hosting is handled entirely by GitHub Pages and needs no Firebase secrets at
+all (see `README.md#deployment-github-pages`). The *only* thing
+`.github/workflows/deploy.yml` needs Firebase secrets for is the optional
+`firestore-rules` job, which publishes `firestore.rules` /
+`firestore.indexes.json` to your project on every push to `main` — and it
+only runs at all once both of these repository secrets are set (**Settings →
+Secrets and variables → Actions → New repository secret**):
 
 | Secret | Value |
 |---|---|
-| `FIREBASE_WEB_CONFIG` | The same `firebaseConfig` object you pasted in step 2, as one JSON value. |
+| `FIREBASE_WEB_CONFIG` | The same `firebaseConfig` object you pasted in step 2, as one JSON value. Also used to write `public/js/firebase-config.js` into the deployed site, so the live GitHub Pages site can use the history backup feature too. |
 | `FIREBASE_SERVICE_ACCOUNT` | Project settings → **Service accounts** → "Generate new private key" → paste the whole downloaded JSON file. This one is a real credential — never commit it. |
 
 No separate project-id secret is needed — the workflow extracts `projectId`
-from `FIREBASE_WEB_CONFIG` itself at deploy time.
+from `FIREBASE_WEB_CONFIG` itself at deploy time. If you never set these
+secrets, GitHub Pages still deploys the app normally on every push — it just
+runs with local-only history, which is a completely supported way to use
+this app.
 
-## 5. Run locally
+## 4. Run locally
 
 ```bash
 npm run serve        # serves public/ at http://localhost:5173
@@ -104,17 +109,20 @@ npm test              # runs the timer-engine test suite (no server needed)
 
 No build step — edit files under `public/` and reload.
 
-## 6. Deploy
+## 5. Deploy the Firestore rules
 
-Automatically: push to `main` (once the two secrets above are set).
+Automatically: push to `main` (once the two secrets above are set) — see
+step 3.
 
 Manually, from your own machine (requires the Firebase CLI, via `npx`, and
 that you're logged in with `npx firebase-tools login`):
 
 ```bash
-npm run deploy         # deploys Hosting only
 npm run deploy:rules   # deploys firestore.rules + firestore.indexes.json only
 ```
+
+(For deploying the app itself, see `README.md#deployment-github-pages` — it
+isn't a Firebase operation.)
 
 ## Troubleshooting
 
@@ -122,9 +130,10 @@ npm run deploy:rules   # deploys firestore.rules + firestore.indexes.json only
   (in a GitHub Actions log) — the secret is empty or not valid JSON.
   Re-copy the whole `firebaseConfig` object from Console step 2 exactly as
   shown.
-- **`action-hosting-deploy` or `firebase-tools` reports an auth/permission
-  error** — `FIREBASE_SERVICE_ACCOUNT` is missing, truncated, or from the
-  wrong project. Re-download a fresh key from Console step 4.
+- **`firebase-tools` reports an auth/permission error** while deploying
+  rules — `FIREBASE_SERVICE_ACCOUNT` is missing, truncated, or from the
+  wrong project. Re-download a fresh key: Project settings → Service
+  accounts → Generate new private key.
 - **A Firestore rules deploy fails with a 403 "does not have permission"
   on `databases?databaseId=(default)`** — the Firestore database itself
   hasn't been created yet. Go back to step 1 and create it in the Console

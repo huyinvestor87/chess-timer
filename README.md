@@ -49,7 +49,9 @@ public/
 tests/
   timerEngine.test.js      Full engine test suite (Node's built-in test runner).
 firestore.rules            The only backend "logic": Firestore write validation.
-FIREBASE_SETUP.md          How to connect this app to your own Firebase project.
+FIREBASE_SETUP.md          Optional: connect this app to your own Firebase
+                            project for cloud session-history backup (the app
+                            itself is hosted on GitHub Pages, not Firebase).
 ```
 
 The split between `timerEngine.js` (pure logic) and `app.js` (DOM glue) is
@@ -153,7 +155,10 @@ installable PWA on iPad/iPhone/desktop).
 
 ## Firebase usage
 
-Firebase is used for exactly one optional thing: backing up a **completed**
+The app is hosted on GitHub Pages (see
+[Deployment](#deployment-github-pages)) — Firebase is not involved in
+serving it. Firebase is used for exactly one optional thing: backing up a
+**completed**
 session's summary (names, starting time, increment/delay, final move
 counts, final remaining time, who ran out, start/end timestamps) to
 Firestore, in addition to the local history that's always kept in
@@ -201,10 +206,27 @@ millisecond-level precision for the tenths-of-a-second low-time display.
 npm test
 ```
 
-## Deployment
+## Deployment (GitHub Pages)
 
-See `FIREBASE_SETUP.md` for connecting to your own (manually-created)
-Firebase project, configuring Hosting/Firestore, and deploying — either
-automatically via the included GitHub Actions workflow
-(`.github/workflows/deploy.yml`) on every push to `main`, or manually with
-`npm run deploy`.
+The app is hosted on **GitHub Pages** — Firebase is not involved in serving
+it. There's no build step, so "deploying" just means publishing `public/`
+as-is.
+
+Automatically: `.github/workflows/deploy.yml` runs the test suite, then
+uploads `public/` to GitHub Pages on every push to `main`, via
+`actions/upload-pages-artifact` + `actions/deploy-pages`. One-time setup:
+**Settings → Pages → Source: GitHub Actions**.
+
+The same workflow also has an optional `firestore-rules` job that deploys
+`firestore.rules`/`firestore.indexes.json` — but only if you've configured
+the Firebase secrets described in `FIREBASE_SETUP.md`. Without them, Pages
+still deploys the app normally on every push; it just runs with local-only
+session history, which is a fully supported way to use this app.
+
+To deploy manually instead of via Actions, push `public/`'s contents to a
+`gh-pages` branch (or any static host — it's plain files, nothing
+GitHub-Pages-specific about the app itself) with your tool of choice, e.g.
+[`gh-pages`](https://www.npmjs.com/package/gh-pages) or `git subtree push`.
+
+See `FIREBASE_SETUP.md` for the optional Firestore session-history backup —
+entirely separate from hosting, and entirely optional.
