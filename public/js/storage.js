@@ -18,6 +18,11 @@ export const DEFAULT_SETTINGS = {
   soundEnabled: true,
   vibrationEnabled: true,
   presetId: '5min',
+  // "Chấp giờ" (time handicap): when enabled, each player gets their own
+  // starting time instead of both sharing the preset/custom value above.
+  handicapEnabled: false,
+  player1StartMs: 5 * 60 * 1000,
+  player2StartMs: 5 * 60 * 1000,
 };
 
 function safeParse(json, fallback) {

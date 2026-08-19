@@ -217,6 +217,21 @@ input {
   margin-top: 12px;
 }
 
+/* Author styles otherwise override the UA default [hidden]{display:none} —
+   same gotcha as .screen[hidden] above. Fixes a real pre-existing bug: the
+   Custom increment/delay fields (and now the handicap fields, which reuse
+   this class) stayed visible even when a non-Custom preset was selected. */
+.custom-fields[hidden] {
+  display: none;
+}
+
+.toggle-field--handicap {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  justify-content: space-between;
+}
+
 .segmented {
   display: flex;
   gap: 8px;

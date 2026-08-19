@@ -29,15 +29,19 @@ service cloud.firestore {
           // Bounded to sane chess-clock ranges: up to 6 hours starting time,
           // 5 minute increment/delay per move — far beyond any real preset,
           // just wide enough to never reject a legitimate custom timer.
-          && d.startingTimeMs is int && d.startingTimeMs >= 0 && d.startingTimeMs <= 6 * 60 * 60 * 1000
+          // Each player's starting time is validated independently to
+          // support "chấp giờ" (time handicap) matches, where the two
+          // players intentionally start with different amounts of time.
+          && d.player1StartingTimeMs is int && d.player1StartingTimeMs >= 0 && d.player1StartingTimeMs <= 6 * 60 * 60 * 1000
+          && d.player2StartingTimeMs is int && d.player2StartingTimeMs >= 0 && d.player2StartingTimeMs <= 6 * 60 * 60 * 1000
           && d.incrementMs is int && d.incrementMs >= 0 && d.incrementMs <= 5 * 60 * 1000
           && d.delayMs is int && d.delayMs >= 0 && d.delayMs <= 5 * 60 * 1000
           // A move count can't plausibly exceed a few thousand in one game.
           && d.player1Moves is int && d.player1Moves >= 0 && d.player1Moves <= 5000
           && d.player2Moves is int && d.player2Moves >= 0 && d.player2Moves <= 5000
-          // Remaining time can never exceed what the clock started with.
-          && d.player1RemainingMs is int && d.player1RemainingMs >= 0 && d.player1RemainingMs <= d.startingTimeMs + d.player1Moves * d.incrementMs
-          && d.player2RemainingMs is int && d.player2RemainingMs >= 0 && d.player2RemainingMs <= d.startingTimeMs + d.player2Moves * d.incrementMs
+          // Remaining time can never exceed what that player's clock started with.
+          && d.player1RemainingMs is int && d.player1RemainingMs >= 0 && d.player1RemainingMs <= d.player1StartingTimeMs + d.player1Moves * d.incrementMs
+          && d.player2RemainingMs is int && d.player2RemainingMs >= 0 && d.player2RemainingMs <= d.player2StartingTimeMs + d.player2Moves * d.incrementMs
           // expiredPlayer is either 1, 2, or null (session ended some other way).
           && (d.expiredPlayer == null || d.expiredPlayer == 1 || d.expiredPlayer == 2)
           && d.startedAt is int && d.startedAt >= 0
