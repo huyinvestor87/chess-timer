@@ -102,12 +102,14 @@ jobs:
               'export const firebaseConfig = ' + JSON.stringify(config, null, 2) + ';\n');
           "
 
-      # enablement: true lets this action turn Pages on for the repo itself
-      # (source: GitHub Actions) the first time this workflow runs, instead
-      # of requiring a manual Settings → Pages click first.
+      # NOTE: the default GITHUB_TOKEN cannot create a Pages site on its own
+      # even with `pages: write` granted above (tried `enablement: true`
+      # here; it fails with "Resource not accessible by integration" —
+      # enabling Pages for the first time needs actual repo-admin access).
+      # This is a ONE-TIME manual step: Settings → Pages → Build and
+      # deployment → Source: GitHub Actions. After that, every run
+      # (including this one, re-run) deploys with no further action needed.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
