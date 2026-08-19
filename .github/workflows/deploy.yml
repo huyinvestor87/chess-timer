@@ -102,7 +102,12 @@ jobs:
               'export const firebaseConfig = ' + JSON.stringify(config, null, 2) + ';\n');
           "
 
+      # enablement: true lets this action turn Pages on for the repo itself
+      # (source: GitHub Actions) the first time this workflow runs, instead
+      # of requiring a manual Settings → Pages click first.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
